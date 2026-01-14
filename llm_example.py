@@ -64,5 +64,5 @@ def main() -> None:
     print("❌ An unexpected error occurred: ")
     print(e)
 
-if __file__ == "__main__":
+if __name__ == "__main__":
   main()

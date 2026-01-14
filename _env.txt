@@ -1,0 +1,2 @@
+SERP_API_KEY = ""
+OPEN_API_KEY = ""

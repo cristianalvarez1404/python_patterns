@@ -1,7 +1,7 @@
 import csv
 from functools import cache,wraps
 import time
-from typing import Callable, Any
+from typing import Callable, Any, Generator
 
 def ttl_cache(seconds: int) -> Callable[[Callable[..., Any]], Callable[...,Any]]:
   def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
@@ -26,22 +26,29 @@ def ttl_cache(seconds: int) -> Callable[[Callable[..., Any]], Callable[...,Any]]
     return wrapper
   
   return decorator
-@cache
-def load_sales(path:str) -> list[dict[str, str]]:
-  """Eagerly load the entire CSV into memory."""
+
+def load_sales(path:str) -> Generator[dict[str, str], None, None]:
   print("Loading CSV data...")
   with open(path) as f:
     reader = csv.DictReader(f)
-    return [row for row in reader]
+    for row in reader:
+      yield row
 
-@cache #This is not the best option, the conversion change. Here we'll need to restart the app.
+# @cache #This is not the best option, the conversion change. Here we'll need to restart the app.
+@ttl_cache(seconds=60)
 def get_conversion_rates() -> dict[str, float]:
   print("fetching conversion rates from remote service...")
   time.sleep(2)
   return {"USD":1.0,"EUR":1.1,"JPY":0.007}
 
-def analyse_sales(sales: list[dict[str, str]], currency:str) -> float:
-  total = sum(float(s["amount"]) for s in sales)
+def analyse_sales(path:str, currency:str) -> float:
+  total = 0.0
+
+  for i, sale in enumerate(load_sales(path), start=1):
+    total += float(sale["amount"])
+    if i >= 10_000:
+      break
+    
   rate = get_conversion_rates().get(currency, 1.0)
   return total * rate
 
@@ -60,8 +67,7 @@ def main() -> None:
     match choice:
       case "1":
         currency = input("Enter currency (USD/EUR/JPY): ").upper() or "USD"
-        sales = load_sales("sales.csv")
-        total = analyse_sales(sales=sales,currency=currency)
+        total = analyse_sales("sales.csv",currency=currency)
         print(f"Total sales in currency {currency}: {total:.2f}")
       case "2":
         sales = load_sales("sales.csv")

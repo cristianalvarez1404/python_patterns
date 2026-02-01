@@ -3,6 +3,35 @@ from datetime import datetime
 from typing import Protocol, Any
 import pandas as pd
 
+class SalesReader(Protocol):
+  def read(self, input_file: str) -> pd.DataFrame:
+    ...
+
+class CsvSalesReader:
+  def read(self, input_file: str) -> pd.DataFrame:
+    return pd.read_csv(input_file, parse_dates=["date"])
+
+class ReportWriter(Protocol):
+  def write(self, output_file: str, data: dict[str, Any]) -> None:
+    ...
+
+class JsonReportWriter:
+  def write(self, output_file: str, data: dict[str, Any]) -> None:
+    with open(output_file, "w") as f:
+      json.dump(data, f, indent=2)
+
+class DateRangeFilter:
+  def __init__(self, start_date: datetime | None = None, end_date: datetime | None = None):
+    self.start_date = start_date
+    self.end_date = end_date
+
+  def filter(self,df: pd.DataFrame) -> pd.DataFrame:
+    if self.start_date:
+      df = df[df["data"] >= pd.Timestamp(self.start_date)]
+    if self.end_date:
+      df = df[df["data"] <= pd.Timestamp(self.end_date)]
+    return df
+
 class Metric(Protocol):
   def compute(self, df: pd.DataFrame) -> dict[str, Any]:
     ...
@@ -29,39 +58,41 @@ class TotalSalesMetric:
     total_sales = df["price"].sum()
     return {"total_sales_in_period (pre-tax)": round(total_sales, 2)}
 
-class MessySalesReport:
-  def __init__(self, metrics:list[Metric]) -> None:
+class SalesReportGenerator:
+  def __init__(self, reader: SalesReader, writer: ReportWriter, metrics:list[Metric]) -> None:
+    self.reader = reader
+    self.writer = writer
     self.metrics = metrics
 
   def generate(
       self,
       input_file: str,
       ouput_file: str,
-      start_date: datetime | None = None,
-      end_date: datetime | None = None,
+      filter: DateRangeFilter | None = None
   ) -> None :
-    df = pd.read_csv(input_file, parse_dates=["date"])
+    df = self.reader.read(input_file)
 
-    if start_date:
-      df = df[df["data"] >= pd.Timestamp(start_date)]
-    if end_date:
-      df = df[df["data"] <= pd.Timestamp(end_date)]
+    if filter:
+      df = filter.filter(df)
 
     report_data = {}
     for metric in self.metrics:
       report_data.update(metric.compute(df))
 
     report = {
-      "report_start": start_date.strftime("%Y-%m-%d") if start_date else "N/A",
-      "report_end": end_date.strftime("%Y-%m-%d") if end_date else "N/A",
+      "report_start": filter.start_date.strftime("%Y-%m-%d") if filter.start_date else "N/A",
+      "report_end": filter.end_date.strftime("%Y-%m-%d") if filter.end_date else "N/A",
       **report_data
     }
 
-    with open(ouput_file, "w") as f:
-      json.dump(report, f, indent=2)
+    self.writer(ouput_file,report)
 
 def main() -> None:
-  report = MessySalesReport(
+  reader = CsvSalesReader()
+  writer = JsonReportWriter()
+  report = SalesReportGenerator(
+    reader=reader,
+    writer=writer,
     metrics=[
       CustomerCountMetric(),
       AverageOrderValueMetric(),
@@ -72,8 +103,10 @@ def main() -> None:
   report.generate(
     input_file="sales_data.csv",
     ouput_file="sales_report.json",
-    start_date=datetime(2024, 1, 1),
-    end_date=datetime(2024, 12, 31)
+    filter=DateRangeFilter(
+      start_date=datetime(2024, 1, 1),
+      end_date=datetime(2024, 12, 31)
+    )
   )
 
 if __name__ == "__main__":

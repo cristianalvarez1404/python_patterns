@@ -84,7 +84,9 @@ class Batch:
         command.undo()
 
   def undo(self) -> None:
-    pass
+    for command in reversed(self.commands):
+      command.undo()
 
   def redo(self) -> None:
-    pass
+    for command in self.commands:
+      command.redo()

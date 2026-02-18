@@ -1,28 +1,19 @@
-from banking.bank import Bank
-from banking.commands import Batch, Deposit, Transfer, Withdrawal
-from banking.controller import BankController
+"""Support ticket handling example."""
 
-def main() -> None:
+from support.app import CustomerSupport
+from support.ticket import SupportTicket
 
-  #create a bank
-  bank = Bank()
+def main():
+  # create the application
+  app = CustomerSupport()
 
-  #create a bank controller
-  controller = BankController()
+  # register a few tickets
+  app.add_ticket(SupportTicket("John Smith", "My computer makes strange sounds!"))
+  app.add_ticket(SupportTicket("Linus Sebastian", "I can't upload any videos, please help."))
+  app.add_ticket(SupportTicket("Codes", "VSCode doesn't automatically solve my bugs."))
 
-  #create some accounts
-  account1 = bank.create_account("user1")
-  account2 = bank.create_account("Google")
-  account3 = bank.create_account("Microsoft")
+  # process the tickets
+  app.process_tickets("fifo")
 
-  controller.execute(Deposit(account1, 100000))
-
-  controller.execute(
-    Batch(
-      commands= [
-        Deposit(account2, 10000),
-        Deposit(account3, 10000),
-        Transfer(from_account=account2, to_account=account1, amount=50000)
-      ]
-    )    
-  )
+if __name__ == "__main__":
+  main()
